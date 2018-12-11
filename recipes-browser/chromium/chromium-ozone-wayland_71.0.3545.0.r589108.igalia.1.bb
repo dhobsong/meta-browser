@@ -16,6 +16,7 @@ SRC_URI += " \
  file://0001-fix-LR-register-in-crashpad.patch \
  file://0001-Workaround-gcc-bug-protected-within-this-context.patch \
  file://0001-Fix-constexpr-needed-for-in-class-initialization-of-.patch \
+ file://0001-webrtc-Add-CBP-to-list-of-supported-H.264-profiles-f.patch \
 "
 
 REQUIRED_DISTRO_FEATURES = "wayland"

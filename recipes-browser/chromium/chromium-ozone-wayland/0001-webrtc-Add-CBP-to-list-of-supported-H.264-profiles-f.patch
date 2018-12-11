@@ -1,0 +1,61 @@
+From addc3f503cc5a3bcb8c5ccaa47be2f310e05186b Mon Sep 17 00:00:00 2001
+From: Damian Hobson-Garcia <dhobsong@igel.co.jp>
+Date: Mon, 10 Dec 2018 13:06:56 +0900
+Subject: [PATCH] webrtc:Add CBP to list of supported H.264 profiles for H/W
+ decode
+
+Base on changes made in the following upstream commit.
+
+commit b5f5ab1e3cd82b4ff2964a1a1db533aa4d25c207
+Author: Emircan Uysaler <emircan@chromium.org>
+Date:   Mon Dec 3 16:46:34 2018 +0000
+Reland "WebRTC: Migrate completely to new video codec factories API"
+---
+ .../media/webrtc/rtc_video_decoder_factory.cc | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/content/renderer/media/webrtc/rtc_video_decoder_factory.cc b/content/renderer/media/webrtc/rtc_video_decoder_factory.cc
+index 65bc3f0..e5583cb 100644
+--- a/content/renderer/media/webrtc/rtc_video_decoder_factory.cc
++++ b/content/renderer/media/webrtc/rtc_video_decoder_factory.cc
+@@ -75,6 +75,29 @@ base::Optional<webrtc::SdpVideoFormat> VDAToWebRTCFormat(
+   return base::nullopt;
+ }
+ 
++// Due to https://crbug.com/345569, HW decoders do not distinguish between
++// Constrained Baseline(CBP) and Baseline(BP) profiles. Since CBP is a subset of
++// BP, we can report support for both. It is safe to do so when SW fallback is
++// available.
++// TODO(emircan): Remove this when the bug referred above is fixed.
++void MapBaselineProfile(
++    std::vector<webrtc::SdpVideoFormat>* supported_formats) {
++  for (const auto& format : *supported_formats) {
++    const absl::optional<webrtc::H264::ProfileLevelId> profile_level_id =
++        webrtc::H264::ParseSdpProfileLevelId(format.parameters);
++    if (profile_level_id &&
++        profile_level_id->profile == webrtc::H264::kProfileBaseline) {
++      webrtc::SdpVideoFormat cbp_format = format;
++      webrtc::H264::ProfileLevelId cbp_profile = *profile_level_id;
++      cbp_profile.profile = webrtc::H264::kProfileConstrainedBaseline;
++      cbp_format.parameters[cricket::kH264FmtpProfileLevelId] =
++          *webrtc::H264::ProfileLevelIdToString(cbp_profile);
++      supported_formats->push_back(cbp_format);
++      return;
++    }
++  }
++}
++
+ // This extra indirection is needed so that we can delete the decoder on the
+ // correct thread.
+ class ScopedVideoDecoder : public webrtc::VideoDecoder {
+@@ -132,6 +155,7 @@ RTCVideoDecoderFactory::RTCVideoDecoderFactory(
+     if (format)
+       supported_formats_.push_back(std::move(*format));
+   }
++  MapBaselineProfile(&supported_formats_);
+ }
+ 
+ std::vector<webrtc::SdpVideoFormat>
+-- 
+2.17.1
+
